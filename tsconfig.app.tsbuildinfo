@@ -1,0 +1,1 @@
+{"root":["./src/main.tsx","./src/types.ts","./src/vite-env.d.ts","./src/entrypoints/bunnyfieldextension.tsx","./src/entrypoints/bunnypickermodal.tsx","./src/entrypoints/configscreen.tsx","./src/utils/render.tsx"],"version":"5.9.3"}

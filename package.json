@@ -1,0 +1,43 @@
+{
+  "name": "datocms-plugin-bunny-net-picker",
+  "description": "Integrate bunny.net storage in your datocms",
+  "homepage": "https://github.com/jamie-at-bunny/datocms-bunny-picker",
+  "private": false,
+  "version": "0.1.0",
+  "author": "Jamie Barton <jamie@bunny.net>",
+  "type": "module",
+  "keywords": [
+    "datocms-plugin"
+  ],
+  "datoCmsPlugin": {
+    "title": "DatoCMS bunny.net Picker",
+    "coverImage": "docs/cover-1200x800.png",
+    "previewImage": "docs/preview.mp4",
+    "entryPoint": "dist/index.html",
+    "permissions": ["currentUserAccessToken"]
+  },
+  "files": [
+    "dist",
+    "docs"
+  ],
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "datocms-plugin-sdk": "*",
+    "datocms-react-ui": "*",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.1",
+    "globals": "^15.9.0",
+    "typescript": "^5.5.3",
+    "vite": "^5.4.1"
+  }
+}
