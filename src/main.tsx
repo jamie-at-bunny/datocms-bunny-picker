@@ -6,6 +6,7 @@ import BunnyPickerModal from "./entrypoints/BunnyPickerModal";
 import { render } from "./utils/render";
 
 const FIELD_EXTENSION_ID = "bunnyNetPicker";
+const MULTIPLE_FIELD_EXTENSION_ID = "bunnyNetMultiPicker";
 
 connect({
 	renderConfigScreen(ctx) {
@@ -19,25 +20,38 @@ connect({
 				type: "editor",
 				fieldTypes: ["json"],
 			},
+			{
+				id: MULTIPLE_FIELD_EXTENSION_ID,
+				name: "bunny.net Assets",
+				type: "editor",
+				fieldTypes: ["json"],
+			},
 		];
 	},
 	overrideFieldExtensions(field) {
+		const fieldExtension = field.attributes.appearance.field_extension;
+
 		if (
 			field.attributes.field_type !== "json" ||
-			field.attributes.appearance.field_extension !== FIELD_EXTENSION_ID
+			(fieldExtension !== FIELD_EXTENSION_ID &&
+				fieldExtension !== MULTIPLE_FIELD_EXTENSION_ID)
 		) {
 			return;
 		}
 
 		return {
 			editor: {
-				id: FIELD_EXTENSION_ID,
+				id: fieldExtension,
 			},
 		};
 	},
 	renderFieldExtension(fieldExtensionId, ctx) {
 		if (fieldExtensionId === FIELD_EXTENSION_ID) {
-			render(<BunnyFieldExtension ctx={ctx} />);
+			render(<BunnyFieldExtension ctx={ctx} selectionMode="single" />);
+		}
+
+		if (fieldExtensionId === MULTIPLE_FIELD_EXTENSION_ID) {
+			render(<BunnyFieldExtension ctx={ctx} selectionMode="multiple" />);
 		}
 	},
 	renderModal(modalId, ctx) {

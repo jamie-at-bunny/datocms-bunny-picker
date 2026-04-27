@@ -14,7 +14,9 @@
     "coverImage": "docs/cover-1200x800.png",
     "previewImage": "docs/preview.mp4",
     "entryPoint": "dist/index.html",
-    "permissions": ["currentUserAccessToken"]
+    "permissions": [
+      "currentUserAccessToken"
+    ]
   },
   "files": [
     "dist",
@@ -27,17 +29,23 @@
     "prepublishOnly": "npm run build"
   },
   "dependencies": {
+    "@tanstack/react-virtual": "^3.13.24",
     "datocms-plugin-sdk": "*",
     "datocms-react-ui": "*",
+    "lodash-es": "^4.18.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
+    "@types/lodash-es": "^4.17.12",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
-    "@vitejs/plugin-react": "^4.3.1",
+    "@vitejs/plugin-react": "^6.0.1",
     "globals": "^15.9.0",
     "typescript": "^5.5.3",
-    "vite": "^5.4.1"
+    "vite": "^8.0.10"
+  },
+  "overrides": {
+    "uuid": "14.0.0"
   }
 }
