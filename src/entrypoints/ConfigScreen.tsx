@@ -8,40 +8,18 @@ import {
 	FieldGroup,
 	SelectField,
 } from "datocms-react-ui";
+import type { PluginParams } from "../types";
+import {
+	getStorageBaseUrl,
+	getStorageRegionOption,
+	STORAGE_REGION_OPTIONS,
+} from "../types";
 
 type Props = {
 	ctx: RenderConfigScreenCtx;
 };
 
-type ValidParams = {
-	storageZoneName: string;
-	storageApiKey: string;
-	cdnHostname: string;
-	storageRegion: string;
-};
-
-const REGION_OPTIONS = [
-	{ label: "Falkenstein (EU)", value: "de" },
-	{ label: "New York (US East)", value: "ny" },
-	{ label: "Los Angeles (US West)", value: "la" },
-	{ label: "Singapore (Asia)", value: "sg" },
-	{ label: "Sydney (Oceania)", value: "syd" },
-];
-
-function getStorageBaseUrl(region: string): string {
-	switch (region) {
-		case "ny":
-			return "https://ny.storage.bunnycdn.com";
-		case "la":
-			return "https://la.storage.bunnycdn.com";
-		case "sg":
-			return "https://sg.storage.bunnycdn.com";
-		case "syd":
-			return "https://syd.storage.bunnycdn.com";
-		default:
-			return "https://storage.bunnycdn.com";
-	}
-}
+type ValidParams = PluginParams;
 
 function getInitialParams(ctx: RenderConfigScreenCtx): ValidParams {
 	const params = ctx.plugin.attributes.parameters as Partial<ValidParams>;
@@ -49,7 +27,7 @@ function getInitialParams(ctx: RenderConfigScreenCtx): ValidParams {
 		storageZoneName: params.storageZoneName || "",
 		storageApiKey: params.storageApiKey || "",
 		cdnHostname: params.cdnHostname || "",
-		storageRegion: params.storageRegion || "de",
+		storageRegion: getStorageRegionOption(params.storageRegion || "de").value,
 	};
 }
 
@@ -88,9 +66,7 @@ export default function ConfigScreen({ ctx }: Props) {
 		}
 	};
 
-	const selectedRegion = REGION_OPTIONS.find(
-		(o) => o.value === values.storageRegion,
-	);
+	const selectedRegion = getStorageRegionOption(values.storageRegion);
 
 	return (
 		<Canvas ctx={ctx}>
@@ -133,8 +109,8 @@ export default function ConfigScreen({ ctx }: Props) {
 						name="storageRegion"
 						label="Storage Region"
 						hint={`Storage API base URL: ${getStorageBaseUrl(values.storageRegion)}`}
-						value={selectedRegion || REGION_OPTIONS[0]}
-						selectInputProps={{ options: REGION_OPTIONS }}
+						value={selectedRegion}
+						selectInputProps={{ options: STORAGE_REGION_OPTIONS }}
 						onChange={(option) => {
 							if (option && "value" in option) {
 								update("storageRegion", option.value);

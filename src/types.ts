@@ -5,6 +5,78 @@ export type PluginParams = {
 	storageRegion: string;
 };
 
+export function hasRequiredPluginParams(
+	params: Partial<PluginParams>,
+): params is PluginParams {
+	return Boolean(
+		params.storageZoneName?.trim() &&
+			params.storageApiKey?.trim() &&
+			params.cdnHostname?.trim() &&
+			params.storageRegion?.trim(),
+	);
+}
+
+export type StorageRegionOption = {
+	label: string;
+	value: string;
+	endpoint: string;
+};
+
+export const STORAGE_REGION_OPTIONS: StorageRegionOption[] = [
+	{
+		label: "Frankfurt, DE",
+		value: "de",
+		endpoint: "https://storage.bunnycdn.com",
+	},
+	{
+		label: "London, UK",
+		value: "uk",
+		endpoint: "https://uk.storage.bunnycdn.com",
+	},
+	{
+		label: "New York, US",
+		value: "ny",
+		endpoint: "https://ny.storage.bunnycdn.com",
+	},
+	{
+		label: "Los Angeles, US",
+		value: "la",
+		endpoint: "https://la.storage.bunnycdn.com",
+	},
+	{
+		label: "Singapore, SG",
+		value: "sg",
+		endpoint: "https://sg.storage.bunnycdn.com",
+	},
+	{
+		label: "Stockholm, SE",
+		value: "se",
+		endpoint: "https://se.storage.bunnycdn.com",
+	},
+	{
+		label: "São Paulo, BR",
+		value: "br",
+		endpoint: "https://br.storage.bunnycdn.com",
+	},
+	{
+		label: "Johannesburg, ZA",
+		value: "jh",
+		endpoint: "https://jh.storage.bunnycdn.com",
+	},
+	{
+		label: "Sydney, AU",
+		value: "syd",
+		endpoint: "https://syd.storage.bunnycdn.com",
+	},
+];
+
+export function getStorageRegionOption(region: string): StorageRegionOption {
+	return (
+		STORAGE_REGION_OPTIONS.find((option) => option.value === region) ||
+		STORAGE_REGION_OPTIONS[0]
+	);
+}
+
 export type BunnyAsset = {
 	path: string;
 	filename: string;
@@ -13,6 +85,47 @@ export type BunnyAsset = {
 	width?: number;
 	height?: number;
 };
+
+export type SelectionMode = "single" | "multiple";
+
+export type BunnyPickerResult = BunnyAsset | BunnyAsset[] | null;
+
+export function isBunnyAsset(value: unknown): value is BunnyAsset {
+	return (
+		typeof value === "object" &&
+		value !== null &&
+		"path" in value &&
+		typeof value.path === "string" &&
+		"filename" in value &&
+		typeof value.filename === "string" &&
+		"size" in value &&
+		typeof value.size === "number" &&
+		"contentType" in value &&
+		typeof value.contentType === "string"
+	);
+}
+
+export function parseStoredSingleAsset(value: unknown): BunnyAsset | null {
+	if (!value) return null;
+
+	try {
+		const parsed = typeof value === "string" ? JSON.parse(value) : value;
+		return isBunnyAsset(parsed) ? parsed : null;
+	} catch {
+		return null;
+	}
+}
+
+export function parseStoredMultipleAssets(value: unknown): BunnyAsset[] {
+	if (!value) return [];
+
+	try {
+		const parsed = typeof value === "string" ? JSON.parse(value) : value;
+		return Array.isArray(parsed) ? parsed.filter(isBunnyAsset) : [];
+	} catch {
+		return [];
+	}
+}
 
 export type StorageObject = {
 	Guid: string;
@@ -77,20 +190,33 @@ export function formatFileSize(bytes: number): string {
 }
 
 export function getStorageBaseUrl(region: string): string {
-	switch (region) {
-		case "ny":
-			return "https://ny.storage.bunnycdn.com";
-		case "la":
-			return "https://la.storage.bunnycdn.com";
-		case "sg":
-			return "https://sg.storage.bunnycdn.com";
-		case "syd":
-			return "https://syd.storage.bunnycdn.com";
-		default:
-			return "https://storage.bunnycdn.com";
-	}
+	return getStorageRegionOption(region).endpoint;
 }
 
 export function buildCdnUrl(cdnHostname: string, path: string): string {
 	return `https://${cdnHostname}/${path.replace(/^\//, "")}`;
+}
+
+export type ThumbnailOptions = {
+	width: number;
+	height: number;
+	quality: number;
+};
+
+export function buildThumbnailUrl(
+	cdnHostname: string,
+	path: string,
+	{ width, height, quality }: ThumbnailOptions,
+): string {
+	const cdnUrl = buildCdnUrl(cdnHostname, path);
+
+	try {
+		const url = new URL(cdnUrl);
+		url.searchParams.set("width", String(width));
+		url.searchParams.set("height", String(height));
+		url.searchParams.set("quality", String(quality));
+		return url.toString();
+	} catch {
+		return `${cdnUrl}?width=${width}&height=${height}&quality=${quality}`;
+	}
 }

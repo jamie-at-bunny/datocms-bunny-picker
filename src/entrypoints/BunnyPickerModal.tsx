@@ -1,16 +1,33 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import type { RenderModalCtx } from "datocms-plugin-sdk";
 import { Canvas, Button, Spinner, TextInput } from "datocms-react-ui";
-import type { PluginParams, StorageObject, BunnyAsset } from "../types";
+import { useVirtualizer } from "@tanstack/react-virtual";
+import type {
+	PluginParams,
+	StorageObject,
+	BunnyAsset,
+	SelectionMode,
+} from "../types";
 import {
 	getStorageBaseUrl,
 	isImageFile,
 	isMediaFile,
 	formatFileSize,
 	getContentType,
-	buildCdnUrl,
+	buildThumbnailUrl,
+	hasRequiredPluginParams,
+	isBunnyAsset,
 } from "../types";
+import SmoothThumbnail from "./SmoothThumbnail";
 import s from "./BunnyPickerModal.module.css";
+
+const MEDIA_CARD_MIN_WIDTH = 240;
+const MEDIA_CARD_HEIGHT = 238;
+const MEDIA_GRID_GAP = 24;
+const STANDARD_ROW_HEIGHT = 48;
+const ROW_GAP = 8;
+const EMPTY_ROW_HEIGHT = 220;
+const VIRTUAL_OVERSCAN = 4;
 
 type Props = {
 	ctx: RenderModalCtx;
@@ -22,27 +39,64 @@ type UploadingFile = {
 	error?: string;
 };
 
+type ModalParameters = {
+	selectionMode?: SelectionMode;
+	selectedAssets?: unknown;
+};
+
+type VirtualPickerRow =
+	| { type: "parent"; key: string }
+	| { type: "folder"; key: string; folder: StorageObject }
+	| { type: "media"; key: string; files: StorageObject[] }
+	| { type: "file"; key: string; file: StorageObject }
+	| { type: "empty"; key: string };
+
 export default function BunnyPickerModal({ ctx }: Props) {
-	const params = ctx.plugin.attributes.parameters as PluginParams;
-	const { storageZoneName, storageApiKey, cdnHostname, storageRegion } = params;
+	const params = ctx.plugin.attributes.parameters as Partial<PluginParams>;
+	const modalParams = ctx.parameters as ModalParameters;
+	const selectionMode: SelectionMode =
+		modalParams.selectionMode === "multiple" ? "multiple" : "single";
+	const initialSelectedAssets =
+		selectionMode === "multiple" &&
+		Array.isArray(modalParams.selectedAssets)
+			? modalParams.selectedAssets.filter(isBunnyAsset)
+			: [];
+	const storageConfig = hasRequiredPluginParams(params) ? params : null;
+	const isConfigured = Boolean(storageConfig);
+	const storageZoneName = storageConfig?.storageZoneName || "";
+	const storageApiKey = storageConfig?.storageApiKey || "";
+	const cdnHostname = storageConfig?.cdnHostname || "";
+	const storageRegion = storageConfig?.storageRegion || "";
 
 	const [files, setFiles] = useState<StorageObject[]>([]);
-	const [loading, setLoading] = useState(true);
+	const [loading, setLoading] = useState(isConfigured);
 	const [error, setError] = useState<string | null>(null);
 	const [currentPath, setCurrentPath] = useState("/");
 	const [searchQuery, setSearchQuery] = useState("");
-	const [selectedFile, setSelectedFile] = useState<StorageObject | null>(null);
+	const [selectedAssets, setSelectedAssets] = useState<BunnyAsset[]>(
+		initialSelectedAssets,
+	);
 	const [uploading, setUploading] = useState<UploadingFile[]>([]);
 	const [dragging, setDragging] = useState(false);
 	const fileInputRef = useRef<HTMLInputElement>(null);
+	const listRef = useRef<HTMLDivElement>(null);
+	const [listWidth, setListWidth] = useState(0);
 
-	const storageBaseUrl = getStorageBaseUrl(storageRegion);
+	const storageBaseUrl = isConfigured ? getStorageBaseUrl(storageRegion) : "";
+	const isUploading = uploading.some((u) => u.progress === "uploading");
 
 	const fetchFiles = useCallback(
 		async (path: string) => {
+			if (!isConfigured) {
+				setLoading(false);
+				return;
+			}
+
 			setLoading(true);
 			setError(null);
-			setSelectedFile(null);
+			if (selectionMode === "single") {
+				setSelectedAssets([]);
+			}
 
 			try {
 				const url = `${storageBaseUrl}/${storageZoneName}/${path.replace(/^\//, "")}`;
@@ -64,12 +118,42 @@ export default function BunnyPickerModal({ ctx }: Props) {
 				setLoading(false);
 			}
 		},
-		[storageBaseUrl, storageZoneName, storageApiKey],
+		[
+			isConfigured,
+			storageBaseUrl,
+			storageZoneName,
+			storageApiKey,
+			selectionMode,
+		],
 	);
 
 	useEffect(() => {
-		fetchFiles(currentPath);
-	}, [currentPath, fetchFiles]);
+		if (isConfigured) {
+			fetchFiles(currentPath);
+		} else {
+			setLoading(false);
+		}
+	}, [currentPath, fetchFiles, isConfigured]);
+
+	useEffect(() => {
+		const element = listRef.current;
+		if (!element) return;
+
+		const updateWidth = () => {
+			setListWidth(element.clientWidth);
+		};
+
+		updateWidth();
+
+		const observer = new ResizeObserver((entries) => {
+			const entry = entries[0];
+			setListWidth(entry.contentRect.width);
+		});
+
+		observer.observe(element);
+
+		return () => observer.disconnect();
+	}, [error, isConfigured, loading]);
 
 	const navigateToFolder = (folder: StorageObject) => {
 		const newPath = `${folder.Path}${folder.ObjectName}/`.replace(
@@ -87,25 +171,55 @@ export default function BunnyPickerModal({ ctx }: Props) {
 		setSearchQuery("");
 	};
 
-	const selectAsset = (file: StorageObject) => {
-		const filePath = `${file.Path}${file.ObjectName}`.replace(
+	const getFilePath = (file: StorageObject): string => {
+		return `${file.Path}${file.ObjectName}`.replace(
 			`/${storageZoneName}/`,
 			"",
 		);
+	};
 
-		const asset: BunnyAsset = {
-			path: filePath,
+	const getAssetFromFile = (file: StorageObject): BunnyAsset => {
+		return {
+			path: getFilePath(file),
 			filename: file.ObjectName,
 			size: file.Length,
 			contentType: getContentType(file.ObjectName),
 		};
+	};
 
-		ctx.resolve(asset);
+	const isAssetSelected = (path: string): boolean => {
+		return selectedAssets.some((asset) => asset.path === path);
+	};
+
+	const toggleAsset = (file: StorageObject) => {
+		const asset = getAssetFromFile(file);
+
+		if (selectionMode === "single") {
+			setSelectedAssets([asset]);
+			return;
+		}
+
+		setSelectedAssets((prev) =>
+			prev.some((selected) => selected.path === asset.path)
+				? prev.filter((selected) => selected.path !== asset.path)
+				: [...prev, asset],
+		);
+	};
+
+	const selectAsset = (file: StorageObject) => {
+		ctx.resolve(getAssetFromFile(file));
 	};
 
 	const handleSelect = () => {
-		if (selectedFile) {
-			selectAsset(selectedFile);
+		if (selectionMode === "multiple") {
+			if (selectedAssets.length > 0) {
+				ctx.resolve(selectedAssets);
+			}
+			return;
+		}
+
+		if (selectedAssets[0]) {
+			ctx.resolve(selectedAssets[0]);
 		}
 	};
 
@@ -117,7 +231,7 @@ export default function BunnyPickerModal({ ctx }: Props) {
 			method: "PUT",
 			headers: {
 				AccessKey: storageApiKey,
-				"Content-Type": "application/octet-stream",
+				"Content-Type": getUploadContentType(file),
 			},
 			body: file,
 		});
@@ -128,6 +242,8 @@ export default function BunnyPickerModal({ ctx }: Props) {
 	};
 
 	const handleUpload = async (fileList: FileList | File[]) => {
+		if (!isConfigured) return;
+
 		const filesToUpload = Array.from(fileList);
 		if (filesToUpload.length === 0) return;
 
@@ -163,9 +279,7 @@ export default function BunnyPickerModal({ ctx }: Props) {
 			}
 		}
 
-		// Refresh file list after all uploads complete
 		await fetchFiles(currentPath);
-		// Clear upload state after a short delay so user sees the results
 		setTimeout(() => setUploading([]), 1500);
 	};
 
@@ -187,18 +301,106 @@ export default function BunnyPickerModal({ ctx }: Props) {
 		setDragging(false);
 	};
 
-	const filteredFiles = files.filter((file) => {
-		if (!searchQuery) return true;
-		return file.ObjectName.toLowerCase().includes(searchQuery.toLowerCase());
+	const hasSearchQuery = searchQuery.trim().length > 0;
+
+	const filteredFiles = useMemo(() => {
+		const normalizedQuery = searchQuery.trim().toLowerCase();
+		if (!hasSearchQuery) return files;
+
+		return files.filter((file) =>
+			file.ObjectName.toLowerCase().includes(normalizedQuery),
+		);
+	}, [files, hasSearchQuery, searchQuery]);
+
+	const directories = useMemo(
+		() => filteredFiles.filter((file) => file.IsDirectory),
+		[filteredFiles],
+	);
+
+	const mediaFiles = useMemo(
+		() =>
+			filteredFiles.filter(
+				(file) => !file.IsDirectory && isMediaFile(file.ObjectName),
+			),
+		[filteredFiles],
+	);
+
+	const otherFiles = useMemo(
+		() =>
+			filteredFiles.filter(
+				(file) => !file.IsDirectory && !isMediaFile(file.ObjectName),
+			),
+		[filteredFiles],
+	);
+	const hasVisibleFiles =
+		directories.length > 0 || mediaFiles.length > 0 || otherFiles.length > 0;
+
+	const mediaColumns = useMemo(() => {
+		const availableWidth = Math.max(0, listWidth - 4);
+		return Math.max(
+			1,
+			Math.floor(
+				(availableWidth + MEDIA_GRID_GAP) /
+					(MEDIA_CARD_MIN_WIDTH + MEDIA_GRID_GAP),
+			),
+		);
+	}, [listWidth]);
+
+	const virtualRows = useMemo<VirtualPickerRow[]>(() => {
+		const rows: VirtualPickerRow[] = [];
+
+		if (currentPath !== "/") {
+			rows.push({ type: "parent", key: "parent-folder" });
+		}
+
+		for (const directory of directories) {
+			rows.push({
+				type: "folder",
+				key: `folder-${directory.Guid}`,
+				folder: directory,
+			});
+		}
+
+		for (let index = 0; index < mediaFiles.length; index += mediaColumns) {
+			rows.push({
+				type: "media",
+				key: `media-${index}`,
+				files: mediaFiles.slice(index, index + mediaColumns),
+			});
+		}
+
+		for (const file of otherFiles) {
+			rows.push({ type: "file", key: `file-${file.Guid}`, file });
+		}
+
+		if (!hasVisibleFiles) {
+			rows.push({ type: "empty", key: "empty-state" });
+		}
+
+		return rows;
+	}, [
+		currentPath,
+		directories,
+		hasVisibleFiles,
+		mediaColumns,
+		mediaFiles,
+		otherFiles,
+	]);
+
+	const virtualizer = useVirtualizer({
+		count: virtualRows.length,
+		getScrollElement: () => listRef.current,
+		estimateSize: (index) => getVirtualRowSize(virtualRows[index]),
+		overscan: VIRTUAL_OVERSCAN,
 	});
 
-	const directories = filteredFiles.filter((f) => f.IsDirectory);
-	const mediaFiles = filteredFiles.filter(
-		(f) => !f.IsDirectory && isMediaFile(f.ObjectName),
-	);
-	const otherFiles = filteredFiles.filter(
-		(f) => !f.IsDirectory && !isMediaFile(f.ObjectName),
-	);
+	useEffect(() => {
+		virtualizer.scrollToOffset(0);
+	}, [currentPath, searchQuery]);
+
+	useEffect(() => {
+		virtualizer.measure();
+	}, [currentPath, mediaColumns, searchQuery, virtualRows.length]);
 
 	const breadcrumbs = currentPath
 		.split("/")
@@ -207,19 +409,23 @@ export default function BunnyPickerModal({ ctx }: Props) {
 			label: part,
 			path: `/${arr.slice(0, i + 1).join("/")}/`,
 		}));
+	const selectedAsset = selectedAssets[0] || null;
 
 	return (
 		<Canvas ctx={ctx}>
 			<div className={s.container}>
 				<div className={s.toolbar}>
 					<div className={s.breadcrumbs}>
-						<button
-							type="button"
-							className={s.breadcrumb}
+						<a
+							className={`${s.breadcrumb} ${s.storageBreadcrumb}`}
+							href={getStorageDashboardUrl()}
+							target="_blank"
+							rel="noreferrer"
 							onClick={() => setCurrentPath("/")}
+							title="Open bunny.net Storage"
 						>
-							{storageZoneName}
-						</button>
+							{storageZoneName || "Storage zone"}
+						</a>
 						{breadcrumbs.map((bc) => (
 							<span key={bc.path}>
 								<span className={s.breadcrumbSep}>/</span>
@@ -233,23 +439,25 @@ export default function BunnyPickerModal({ ctx }: Props) {
 							</span>
 						))}
 					</div>
-					<div className={s.search}>
-						<TextInput
-							id="search"
-							name="search"
-							placeholder="Filter files..."
-							value={searchQuery}
-							onChange={(val) => setSearchQuery(val)}
-						/>
+					<div className={s.toolbarActions}>
+						<div className={s.search}>
+							<TextInput
+								id="search"
+								name="search"
+								placeholder="Filter files..."
+								value={searchQuery}
+								onChange={(val) => setSearchQuery(val)}
+							/>
+						</div>
+						<Button
+							buttonType="primary"
+							buttonSize="s"
+							onClick={() => fileInputRef.current?.click()}
+							disabled={!isConfigured || isUploading}
+						>
+							Upload
+						</Button>
 					</div>
-					<Button
-						buttonType="primary"
-						buttonSize="s"
-						onClick={() => fileInputRef.current?.click()}
-						disabled={uploading.some((u) => u.progress === "uploading")}
-					>
-						Upload
-					</Button>
 				</div>
 
 				<input
@@ -284,16 +492,27 @@ export default function BunnyPickerModal({ ctx }: Props) {
 					</div>
 				)}
 
-				{loading && (
+				{!isConfigured && (
+					<div className={s.configMessage}>
+						<div className={s.configTitle}>bunny.net is not configured</div>
+						<div className={s.configText}>
+							Add the storage zone, storage API key, CDN hostname, and
+							region in the plugin settings before choosing an asset.
+						</div>
+					</div>
+				)}
+
+				{isConfigured && loading && (
 					<div className={s.loading}>
 						<Spinner size={48} placement="centered" />
 					</div>
 				)}
 
-				{error && <div className={s.error}>{error}</div>}
+				{isConfigured && error && <div className={s.error}>{error}</div>}
 
-				{!loading && !error && (
+				{isConfigured && !loading && !error && (
 					<div
+						ref={listRef}
 						className={`${s.fileList} ${dragging ? s.fileListDragging : ""}`}
 						onDrop={handleDrop}
 						onDragOver={handleDragOver}
@@ -304,138 +523,312 @@ export default function BunnyPickerModal({ ctx }: Props) {
 								Drop files to upload to this folder
 							</div>
 						)}
-						{currentPath !== "/" && (
-							<button
-								type="button"
-								className={s.folderItem}
-								onClick={navigateUp}
-							>
-								<span className={s.folderIcon}>&#8592;</span>
-								<span className={s.fileName}>..</span>
-							</button>
-						)}
+						<div
+							className={s.virtualContent}
+							style={{ height: `${virtualizer.getTotalSize()}px` }}
+						>
+							{virtualizer.getVirtualItems().map((virtualItem) => {
+								const row = virtualRows[virtualItem.index];
+								if (!row) return null;
 
-						{directories.map((dir) => (
-							<button
-								type="button"
-								key={dir.Guid}
-								className={s.folderItem}
-								onClick={() => navigateToFolder(dir)}
-							>
-								<span className={s.folderIcon}>
-									<svg
-										width="20"
-										height="20"
-										viewBox="0 0 24 24"
-										fill="none"
-										stroke="currentColor"
-										strokeWidth="2"
+								return (
+									<div
+										key={row.key}
+										className={s.virtualItem}
+										style={{
+											height: `${virtualItem.size}px`,
+											transform: `translateY(${virtualItem.start}px)`,
+										}}
 									>
-										<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-									</svg>
-								</span>
-								<span className={s.fileName}>{dir.ObjectName}</span>
-							</button>
-						))}
-
-						{mediaFiles.map((file) => {
-							const filePath = `${file.Path}${file.ObjectName}`.replace(
-								`/${storageZoneName}/`,
-								"",
-							);
-
-							return (
-								<button
-									type="button"
-									key={file.Guid}
-									className={`${s.fileItem} ${selectedFile?.Guid === file.Guid ? s.selected : ""}`}
-									onClick={() => setSelectedFile(file)}
-									onDoubleClick={() => selectAsset(file)}
-								>
-									{isImageFile(file.ObjectName) ? (
-										<img
-											src={buildCdnUrl(cdnHostname, filePath)}
-											alt={file.ObjectName}
-											className={s.thumbnail}
-											loading="lazy"
-										/>
-									) : (
-										<div className={s.videoThumb}>
-											<svg
-												width="24"
-												height="24"
-												viewBox="0 0 24 24"
-												fill="currentColor"
+										{row.type === "parent" && (
+											<button
+												type="button"
+												className={s.folderItem}
+												onClick={navigateUp}
 											>
-												<path d="M8 5v14l11-7z" />
-											</svg>
-										</div>
-									)}
-									<div className={s.fileMeta}>
-										<span className={s.fileName}>{file.ObjectName}</span>
-										<span className={s.fileSize}>
-											{formatFileSize(file.Length)}
-										</span>
+												<span className={s.rowIcon}>&#8592;</span>
+												<span className={s.rowText}>
+													<span className={s.fileName}>Parent folder</span>
+													<span className={s.fileSize}>Go up one level</span>
+												</span>
+											</button>
+										)}
+
+										{row.type === "folder" && (
+											<button
+												type="button"
+												className={s.folderItem}
+												onClick={() => navigateToFolder(row.folder)}
+											>
+												<span className={s.rowIcon}>
+													<FolderIcon />
+												</span>
+												<span className={s.rowText}>
+													<span className={s.fileName}>{row.folder.ObjectName}</span>
+													<span className={s.fileSize}>Folder</span>
+												</span>
+											</button>
+										)}
+
+										{row.type === "media" && (
+											<div
+												className={s.mediaRow}
+												style={{
+													gridTemplateColumns: `repeat(${mediaColumns}, minmax(0, 1fr))`,
+												}}
+											>
+												{row.files.map((file) => {
+													const filePath = getFilePath(file);
+													const selected = isAssetSelected(filePath);
+
+													return (
+														<button
+															type="button"
+															key={file.Guid}
+															className={`${s.fileItem} ${selected ? s.selected : ""}`}
+															onClick={(event) => {
+																if (
+																	selectionMode === "multiple" &&
+																	event.detail > 1
+																) {
+																	return;
+																}
+																toggleAsset(file);
+															}}
+															onDoubleClick={(event) => {
+																if (selectionMode === "multiple") {
+																	event.preventDefault();
+																	return;
+																}
+																selectAsset(file);
+															}}
+														>
+															<div className={s.mediaPreview}>
+																{isImageFile(file.ObjectName) ? (
+																	<SmoothThumbnail
+																		src={buildThumbnailUrl(cdnHostname, filePath, {
+																			width: 480,
+																			height: 360,
+																			quality: 75,
+																		})}
+																		alt={file.ObjectName}
+																		frameClassName={s.thumbnailFrame}
+																		imageClassName={s.thumbnail}
+																		loadedClassName={s.thumbnailLoaded}
+																		errorClassName={s.thumbnailError}
+																		fallback={<FileIcon />}
+																		loading="lazy"
+																	/>
+																) : (
+																	<div className={s.videoThumb}>
+																		<PlayIcon />
+																	</div>
+																)}
+															</div>
+															<div className={s.mediaFooter}>
+																<span
+																	className={`${s.selectionBox} ${
+																		selected ? s.selectionBoxSelected : ""
+																	}`}
+																	aria-hidden="true"
+																>
+																	{selected ? "✓" : ""}
+																</span>
+																<span className={s.mediaName}>{file.ObjectName}</span>
+															</div>
+														</button>
+													);
+												})}
+											</div>
+										)}
+
+										{row.type === "file" && (() => {
+											const selected = isAssetSelected(getFilePath(row.file));
+
+											return (
+												<button
+													type="button"
+													className={`${s.rowItem} ${selected ? s.selected : ""}`}
+													onClick={(event) => {
+														if (
+															selectionMode === "multiple" &&
+															event.detail > 1
+														) {
+															return;
+														}
+														toggleAsset(row.file);
+													}}
+													onDoubleClick={(event) => {
+														if (selectionMode === "multiple") {
+															event.preventDefault();
+															return;
+														}
+														selectAsset(row.file);
+													}}
+												>
+													<span className={s.rowIcon}>
+														<FileIcon />
+													</span>
+													<span
+														className={`${s.selectionBox} ${
+															selected ? s.selectionBoxSelected : ""
+														}`}
+														aria-hidden="true"
+													>
+														{selected ? "✓" : ""}
+													</span>
+													<span className={s.rowText}>
+														<span className={s.fileName}>{row.file.ObjectName}</span>
+														<span className={s.fileSize}>
+															{formatFileSize(row.file.Length)} ·{" "}
+															{getContentType(row.file.ObjectName)}
+														</span>
+													</span>
+												</button>
+											);
+										})()}
+
+										{row.type === "empty" && (
+											<div className={s.empty}>
+												<div className={s.emptyTitle}>
+													{hasSearchQuery
+														? "No files match your search"
+														: "This folder is empty"}
+												</div>
+												<div className={s.emptyText}>
+													{hasSearchQuery
+														? "Try a different filename or clear the filter."
+														: "Upload files to add them to this folder."}
+												</div>
+												{!hasSearchQuery && (
+													<Button
+														buttonType="primary"
+														buttonSize="s"
+														onClick={() => fileInputRef.current?.click()}
+														disabled={isUploading}
+													>
+														Upload files
+													</Button>
+												)}
+											</div>
+										)}
 									</div>
-								</button>
-							);
-						})}
-
-						{otherFiles.map((file) => (
-							<button
-								type="button"
-								key={file.Guid}
-								className={`${s.fileItem} ${selectedFile?.Guid === file.Guid ? s.selected : ""}`}
-								onClick={() => setSelectedFile(file)}
-								onDoubleClick={() => selectAsset(file)}
-							>
-								<div className={s.genericThumb}>
-									<svg
-										width="20"
-										height="20"
-										viewBox="0 0 24 24"
-										fill="none"
-										stroke="currentColor"
-										strokeWidth="2"
-									>
-										<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-										<polyline points="14 2 14 8 20 8" />
-									</svg>
-								</div>
-								<div className={s.fileMeta}>
-									<span className={s.fileName}>{file.ObjectName}</span>
-									<span className={s.fileSize}>
-										{formatFileSize(file.Length)}
-									</span>
-								</div>
-							</button>
-						))}
-
-						{!loading &&
-							directories.length === 0 &&
-							mediaFiles.length === 0 &&
-							otherFiles.length === 0 && (
-								<div className={s.empty}>
-									{searchQuery
-										? "No files match your search"
-										: "This folder is empty"}
-								</div>
-							)}
-					</div>
-				)}
-
-				{selectedFile && (
-					<div className={s.footer}>
-						<div className={s.selectedInfo}>
-							<strong>{selectedFile.ObjectName}</strong>
-							<span>{formatFileSize(selectedFile.Length)}</span>
+								);
+							})}
 						</div>
-						<Button buttonType="primary" onClick={handleSelect}>
-							Select asset
-						</Button>
 					</div>
 				)}
+
+				<div className={s.footer}>
+					<div className={s.selectedInfo}>
+						{selectionMode === "multiple" ? (
+							<>
+								<strong>
+									{selectedAssets.length}{" "}
+									{selectedAssets.length === 1 ? "asset" : "assets"}{" "}
+									selected
+								</strong>
+								<span>
+									Click assets to add or remove them from the selection.
+								</span>
+							</>
+						) : selectedAsset ? (
+							<>
+								<strong>{selectedAsset.filename}</strong>
+								<span>
+									{formatFileSize(selectedAsset.size)}
+									{selectedAsset.contentType !==
+											"application/octet-stream" &&
+										` · ${selectedAsset.contentType}`}
+								</span>
+							</>
+						) : (
+							<>
+								<strong>No asset selected</strong>
+								<span>Select a file or double-click one to choose it.</span>
+							</>
+						)}
+					</div>
+					<Button
+						buttonType="primary"
+						onClick={handleSelect}
+						disabled={selectedAssets.length === 0}
+					>
+						{selectionMode === "multiple"
+							? `Select ${selectedAssets.length} ${
+									selectedAssets.length === 1 ? "asset" : "assets"
+								}`
+							: "Select asset"}
+					</Button>
+				</div>
 			</div>
 		</Canvas>
+	);
+}
+
+function getUploadContentType(file: File): string {
+	return file.type || getContentType(file.name);
+}
+
+function getStorageDashboardUrl(): string {
+	return "https://dash.bunny.net/storage";
+}
+
+function getVirtualRowSize(row: VirtualPickerRow | undefined): number {
+	if (!row) return STANDARD_ROW_HEIGHT;
+
+	switch (row.type) {
+		case "media":
+			return MEDIA_CARD_HEIGHT + ROW_GAP;
+		case "empty":
+			return EMPTY_ROW_HEIGHT + ROW_GAP;
+		case "parent":
+		case "folder":
+		case "file":
+			return STANDARD_ROW_HEIGHT + ROW_GAP;
+	}
+}
+
+function FolderIcon() {
+	return (
+		<svg
+			width="20"
+			height="20"
+			viewBox="0 0 24 24"
+			fill="none"
+			stroke="currentColor"
+			strokeWidth="2"
+		>
+			<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+		</svg>
+	);
+}
+
+function FileIcon() {
+	return (
+		<svg
+			width="20"
+			height="20"
+			viewBox="0 0 24 24"
+			fill="none"
+			stroke="currentColor"
+			strokeWidth="2"
+		>
+			<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+			<polyline points="14 2 14 8 20 8" />
+		</svg>
+	);
+}
+
+function PlayIcon() {
+	return (
+		<svg
+			width="24"
+			height="24"
+			viewBox="0 0 24 24"
+			fill="currentColor"
+		>
+			<path d="M8 5v14l11-7z" />
+		</svg>
 	);
 }
