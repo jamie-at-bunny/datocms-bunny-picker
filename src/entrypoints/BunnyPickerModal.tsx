@@ -1,25 +1,21 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import type { RenderModalCtx } from "datocms-plugin-sdk";
-import { Canvas, Button, Spinner, TextInput } from "datocms-react-ui";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import type {
-	PluginParams,
-	StorageObject,
-	BunnyAsset,
-	SelectionMode,
-} from "../types";
+import type { RenderModalCtx } from "datocms-plugin-sdk";
+import { Button, Canvas, Spinner, TextInput } from "datocms-react-ui";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { BunnyAsset, PluginParams, SelectionMode, StorageObject } from "../types";
 import {
-	getStorageBaseUrl,
-	isImageFile,
-	isMediaFile,
+	buildCdnUrl,
+	buildThumbnailUrl,
 	formatFileSize,
 	getContentType,
-	buildThumbnailUrl,
+	getStorageBaseUrl,
 	hasRequiredPluginParams,
 	isBunnyAsset,
+	isImageFile,
+	isMediaFile,
 } from "../types";
-import SmoothThumbnail from "./SmoothThumbnail";
 import s from "./BunnyPickerModal.module.css";
+import SmoothThumbnail from "./SmoothThumbnail";
 
 const MEDIA_CARD_MIN_WIDTH = 240;
 const MEDIA_CARD_HEIGHT = 238;
@@ -57,8 +53,7 @@ export default function BunnyPickerModal({ ctx }: Props) {
 	const selectionMode: SelectionMode =
 		modalParams.selectionMode === "multiple" ? "multiple" : "single";
 	const initialSelectedAssets =
-		selectionMode === "multiple" &&
-		Array.isArray(modalParams.selectedAssets)
+		selectionMode === "multiple" && Array.isArray(modalParams.selectedAssets)
 			? modalParams.selectedAssets.filter(isBunnyAsset)
 			: [];
 	const storageConfig = hasRequiredPluginParams(params) ? params : null;
@@ -73,9 +68,7 @@ export default function BunnyPickerModal({ ctx }: Props) {
 	const [error, setError] = useState<string | null>(null);
 	const [currentPath, setCurrentPath] = useState("/");
 	const [searchQuery, setSearchQuery] = useState("");
-	const [selectedAssets, setSelectedAssets] = useState<BunnyAsset[]>(
-		initialSelectedAssets,
-	);
+	const [selectedAssets, setSelectedAssets] = useState<BunnyAsset[]>(initialSelectedAssets);
 	const [uploading, setUploading] = useState<UploadingFile[]>([]);
 	const [dragging, setDragging] = useState(false);
 	const fileInputRef = useRef<HTMLInputElement>(null);
@@ -111,20 +104,12 @@ export default function BunnyPickerModal({ ctx }: Props) {
 				const data: StorageObject[] = await response.json();
 				setFiles(data);
 			} catch (err) {
-				setError(
-					err instanceof Error ? err.message : "Failed to load files",
-				);
+				setError(err instanceof Error ? err.message : "Failed to load files");
 			} finally {
 				setLoading(false);
 			}
 		},
-		[
-			isConfigured,
-			storageBaseUrl,
-			storageZoneName,
-			storageApiKey,
-			selectionMode,
-		],
+		[isConfigured, storageBaseUrl, storageZoneName, storageApiKey, selectionMode],
 	);
 
 	useEffect(() => {
@@ -135,6 +120,7 @@ export default function BunnyPickerModal({ ctx }: Props) {
 		}
 	}, [currentPath, fetchFiles, isConfigured]);
 
+	// biome-ignore lint/correctness/useExhaustiveDependencies: deps re-attach observer when listRef element mounts/unmounts as render gates flip
 	useEffect(() => {
 		const element = listRef.current;
 		if (!element) return;
@@ -156,10 +142,7 @@ export default function BunnyPickerModal({ ctx }: Props) {
 	}, [error, isConfigured, loading]);
 
 	const navigateToFolder = (folder: StorageObject) => {
-		const newPath = `${folder.Path}${folder.ObjectName}/`.replace(
-			`/${storageZoneName}/`,
-			"/",
-		);
+		const newPath = `${folder.Path}${folder.ObjectName}/`.replace(`/${storageZoneName}/`, "/");
 		setCurrentPath(newPath);
 		setSearchQuery("");
 	};
@@ -172,18 +155,19 @@ export default function BunnyPickerModal({ ctx }: Props) {
 	};
 
 	const getFilePath = (file: StorageObject): string => {
-		return `${file.Path}${file.ObjectName}`.replace(
-			`/${storageZoneName}/`,
-			"",
-		);
+		return `${file.Path}${file.ObjectName}`.replace(`/${storageZoneName}/`, "");
 	};
 
 	const getAssetFromFile = (file: StorageObject): BunnyAsset => {
+		const path = getFilePath(file);
 		return {
-			path: getFilePath(file),
+			path,
 			filename: file.ObjectName,
 			size: file.Length,
 			contentType: getContentType(file.ObjectName),
+			url: buildCdnUrl(cdnHostname, path),
+			guid: file.Guid,
+			lastChanged: file.LastChanged,
 		};
 	};
 
@@ -256,11 +240,7 @@ export default function BunnyPickerModal({ ctx }: Props) {
 		for (let i = 0; i < filesToUpload.length; i++) {
 			try {
 				await uploadFile(filesToUpload[i]);
-				setUploading((prev) =>
-					prev.map((u, idx) =>
-						idx === i ? { ...u, progress: "done" } : u,
-					),
-				);
+				setUploading((prev) => prev.map((u, idx) => (idx === i ? { ...u, progress: "done" } : u)));
 			} catch (err) {
 				setUploading((prev) =>
 					prev.map((u, idx) =>
@@ -268,10 +248,7 @@ export default function BunnyPickerModal({ ctx }: Props) {
 							? {
 									...u,
 									progress: "error",
-									error:
-										err instanceof Error
-											? err.message
-											: "Upload failed",
+									error: err instanceof Error ? err.message : "Upload failed",
 								}
 							: u,
 					),
@@ -307,9 +284,7 @@ export default function BunnyPickerModal({ ctx }: Props) {
 		const normalizedQuery = searchQuery.trim().toLowerCase();
 		if (!hasSearchQuery) return files;
 
-		return files.filter((file) =>
-			file.ObjectName.toLowerCase().includes(normalizedQuery),
-		);
+		return files.filter((file) => file.ObjectName.toLowerCase().includes(normalizedQuery));
 	}, [files, hasSearchQuery, searchQuery]);
 
 	const directories = useMemo(
@@ -318,31 +293,21 @@ export default function BunnyPickerModal({ ctx }: Props) {
 	);
 
 	const mediaFiles = useMemo(
-		() =>
-			filteredFiles.filter(
-				(file) => !file.IsDirectory && isMediaFile(file.ObjectName),
-			),
+		() => filteredFiles.filter((file) => !file.IsDirectory && isMediaFile(file.ObjectName)),
 		[filteredFiles],
 	);
 
 	const otherFiles = useMemo(
-		() =>
-			filteredFiles.filter(
-				(file) => !file.IsDirectory && !isMediaFile(file.ObjectName),
-			),
+		() => filteredFiles.filter((file) => !file.IsDirectory && !isMediaFile(file.ObjectName)),
 		[filteredFiles],
 	);
-	const hasVisibleFiles =
-		directories.length > 0 || mediaFiles.length > 0 || otherFiles.length > 0;
+	const hasVisibleFiles = directories.length > 0 || mediaFiles.length > 0 || otherFiles.length > 0;
 
 	const mediaColumns = useMemo(() => {
 		const availableWidth = Math.max(0, listWidth - 4);
 		return Math.max(
 			1,
-			Math.floor(
-				(availableWidth + MEDIA_GRID_GAP) /
-					(MEDIA_CARD_MIN_WIDTH + MEDIA_GRID_GAP),
-			),
+			Math.floor((availableWidth + MEDIA_GRID_GAP) / (MEDIA_CARD_MIN_WIDTH + MEDIA_GRID_GAP)),
 		);
 	}, [listWidth]);
 
@@ -378,14 +343,7 @@ export default function BunnyPickerModal({ ctx }: Props) {
 		}
 
 		return rows;
-	}, [
-		currentPath,
-		directories,
-		hasVisibleFiles,
-		mediaColumns,
-		mediaFiles,
-		otherFiles,
-	]);
+	}, [currentPath, directories, hasVisibleFiles, mediaColumns, mediaFiles, otherFiles]);
 
 	const virtualizer = useVirtualizer({
 		count: virtualRows.length,
@@ -394,10 +352,12 @@ export default function BunnyPickerModal({ ctx }: Props) {
 		overscan: VIRTUAL_OVERSCAN,
 	});
 
+	// biome-ignore lint/correctness/useExhaustiveDependencies: scroll to top when path/search change, virtualizer method ref is stable
 	useEffect(() => {
 		virtualizer.scrollToOffset(0);
 	}, [currentPath, searchQuery]);
 
+	// biome-ignore lint/correctness/useExhaustiveDependencies: re-measure when row layout changes, virtualizer method ref is stable
 	useEffect(() => {
 		virtualizer.measure();
 	}, [currentPath, mediaColumns, searchQuery, virtualRows.length]);
@@ -478,15 +438,9 @@ export default function BunnyPickerModal({ ctx }: Props) {
 						{uploading.map((u) => (
 							<div key={u.name} className={s.uploadItem}>
 								<span className={s.uploadName}>{u.name}</span>
-								{u.progress === "uploading" && (
-									<Spinner size={14} />
-								)}
-								{u.progress === "done" && (
-									<span className={s.uploadDone}>Uploaded</span>
-								)}
-								{u.progress === "error" && (
-									<span className={s.uploadError}>{u.error}</span>
-								)}
+								{u.progress === "uploading" && <Spinner size={14} />}
+								{u.progress === "done" && <span className={s.uploadDone}>Uploaded</span>}
+								{u.progress === "error" && <span className={s.uploadError}>{u.error}</span>}
 							</div>
 						))}
 					</div>
@@ -496,8 +450,8 @@ export default function BunnyPickerModal({ ctx }: Props) {
 					<div className={s.configMessage}>
 						<div className={s.configTitle}>bunny.net is not configured</div>
 						<div className={s.configText}>
-							Add the storage zone, storage API key, CDN hostname, and
-							region in the plugin settings before choosing an asset.
+							Add the storage zone, storage API key, CDN hostname, and region in the plugin settings
+							before choosing an asset.
 						</div>
 					</div>
 				)}
@@ -511,22 +465,16 @@ export default function BunnyPickerModal({ ctx }: Props) {
 				{isConfigured && error && <div className={s.error}>{error}</div>}
 
 				{isConfigured && !loading && !error && (
-					<div
+					<section
 						ref={listRef}
 						className={`${s.fileList} ${dragging ? s.fileListDragging : ""}`}
+						aria-label="File list. Drop files here to upload."
 						onDrop={handleDrop}
 						onDragOver={handleDragOver}
 						onDragLeave={handleDragLeave}
 					>
-						{dragging && (
-							<div className={s.dropOverlay}>
-								Drop files to upload to this folder
-							</div>
-						)}
-						<div
-							className={s.virtualContent}
-							style={{ height: `${virtualizer.getTotalSize()}px` }}
-						>
+						{dragging && <div className={s.dropOverlay}>Drop files to upload to this folder</div>}
+						<div className={s.virtualContent} style={{ height: `${virtualizer.getTotalSize()}px` }}>
 							{virtualizer.getVirtualItems().map((virtualItem) => {
 								const row = virtualRows[virtualItem.index];
 								if (!row) return null;
@@ -541,11 +489,7 @@ export default function BunnyPickerModal({ ctx }: Props) {
 										}}
 									>
 										{row.type === "parent" && (
-											<button
-												type="button"
-												className={s.folderItem}
-												onClick={navigateUp}
-											>
+											<button type="button" className={s.folderItem} onClick={navigateUp}>
 												<span className={s.rowIcon}>&#8592;</span>
 												<span className={s.rowText}>
 													<span className={s.fileName}>Parent folder</span>
@@ -587,10 +531,7 @@ export default function BunnyPickerModal({ ctx }: Props) {
 															key={file.Guid}
 															className={`${s.fileItem} ${selected ? s.selected : ""}`}
 															onClick={(event) => {
-																if (
-																	selectionMode === "multiple" &&
-																	event.detail > 1
-																) {
+																if (selectionMode === "multiple" && event.detail > 1) {
 																	return;
 																}
 																toggleAsset(file);
@@ -642,58 +583,54 @@ export default function BunnyPickerModal({ ctx }: Props) {
 											</div>
 										)}
 
-										{row.type === "file" && (() => {
-											const selected = isAssetSelected(getFilePath(row.file));
+										{row.type === "file" &&
+											(() => {
+												const selected = isAssetSelected(getFilePath(row.file));
 
-											return (
-												<button
-													type="button"
-													className={`${s.rowItem} ${selected ? s.selected : ""}`}
-													onClick={(event) => {
-														if (
-															selectionMode === "multiple" &&
-															event.detail > 1
-														) {
-															return;
-														}
-														toggleAsset(row.file);
-													}}
-													onDoubleClick={(event) => {
-														if (selectionMode === "multiple") {
-															event.preventDefault();
-															return;
-														}
-														selectAsset(row.file);
-													}}
-												>
-													<span className={s.rowIcon}>
-														<FileIcon />
-													</span>
-													<span
-														className={`${s.selectionBox} ${
-															selected ? s.selectionBoxSelected : ""
-														}`}
-														aria-hidden="true"
+												return (
+													<button
+														type="button"
+														className={`${s.rowItem} ${selected ? s.selected : ""}`}
+														onClick={(event) => {
+															if (selectionMode === "multiple" && event.detail > 1) {
+																return;
+															}
+															toggleAsset(row.file);
+														}}
+														onDoubleClick={(event) => {
+															if (selectionMode === "multiple") {
+																event.preventDefault();
+																return;
+															}
+															selectAsset(row.file);
+														}}
 													>
-														{selected ? "✓" : ""}
-													</span>
-													<span className={s.rowText}>
-														<span className={s.fileName}>{row.file.ObjectName}</span>
-														<span className={s.fileSize}>
-															{formatFileSize(row.file.Length)} ·{" "}
-															{getContentType(row.file.ObjectName)}
+														<span className={s.rowIcon}>
+															<FileIcon />
 														</span>
-													</span>
-												</button>
-											);
-										})()}
+														<span
+															className={`${s.selectionBox} ${
+																selected ? s.selectionBoxSelected : ""
+															}`}
+															aria-hidden="true"
+														>
+															{selected ? "✓" : ""}
+														</span>
+														<span className={s.rowText}>
+															<span className={s.fileName}>{row.file.ObjectName}</span>
+															<span className={s.fileSize}>
+																{formatFileSize(row.file.Length)} ·{" "}
+																{getContentType(row.file.ObjectName)}
+															</span>
+														</span>
+													</button>
+												);
+											})()}
 
 										{row.type === "empty" && (
 											<div className={s.empty}>
 												<div className={s.emptyTitle}>
-													{hasSearchQuery
-														? "No files match your search"
-														: "This folder is empty"}
+													{hasSearchQuery ? "No files match your search" : "This folder is empty"}
 												</div>
 												<div className={s.emptyText}>
 													{hasSearchQuery
@@ -716,7 +653,7 @@ export default function BunnyPickerModal({ ctx }: Props) {
 								);
 							})}
 						</div>
-					</div>
+					</section>
 				)}
 
 				<div className={s.footer}>
@@ -724,21 +661,17 @@ export default function BunnyPickerModal({ ctx }: Props) {
 						{selectionMode === "multiple" ? (
 							<>
 								<strong>
-									{selectedAssets.length}{" "}
-									{selectedAssets.length === 1 ? "asset" : "assets"}{" "}
+									{selectedAssets.length} {selectedAssets.length === 1 ? "asset" : "assets"}{" "}
 									selected
 								</strong>
-								<span>
-									Click assets to add or remove them from the selection.
-								</span>
+								<span>Click assets to add or remove them from the selection.</span>
 							</>
 						) : selectedAsset ? (
 							<>
 								<strong>{selectedAsset.filename}</strong>
 								<span>
 									{formatFileSize(selectedAsset.size)}
-									{selectedAsset.contentType !==
-											"application/octet-stream" &&
+									{selectedAsset.contentType !== "application/octet-stream" &&
 										` · ${selectedAsset.contentType}`}
 								</span>
 							</>
@@ -798,6 +731,7 @@ function FolderIcon() {
 			fill="none"
 			stroke="currentColor"
 			strokeWidth="2"
+			aria-hidden="true"
 		>
 			<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
 		</svg>
@@ -813,6 +747,7 @@ function FileIcon() {
 			fill="none"
 			stroke="currentColor"
 			strokeWidth="2"
+			aria-hidden="true"
 		>
 			<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
 			<polyline points="14 2 14 8 20 8" />
@@ -822,12 +757,7 @@ function FileIcon() {
 
 function PlayIcon() {
 	return (
-		<svg
-			width="24"
-			height="24"
-			viewBox="0 0 24 24"
-			fill="currentColor"
-		>
+		<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
 			<path d="M8 5v14l11-7z" />
 		</svg>
 	);

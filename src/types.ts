@@ -5,9 +5,7 @@ export type PluginParams = {
 	storageRegion: string;
 };
 
-export function hasRequiredPluginParams(
-	params: Partial<PluginParams>,
-): params is PluginParams {
+export function hasRequiredPluginParams(params: Partial<PluginParams>): params is PluginParams {
 	return Boolean(
 		params.storageZoneName?.trim() &&
 			params.storageApiKey?.trim() &&
@@ -72,8 +70,7 @@ export const STORAGE_REGION_OPTIONS: StorageRegionOption[] = [
 
 export function getStorageRegionOption(region: string): StorageRegionOption {
 	return (
-		STORAGE_REGION_OPTIONS.find((option) => option.value === region) ||
-		STORAGE_REGION_OPTIONS[0]
+		STORAGE_REGION_OPTIONS.find((option) => option.value === region) || STORAGE_REGION_OPTIONS[0]
 	);
 }
 
@@ -82,6 +79,9 @@ export type BunnyAsset = {
 	filename: string;
 	size: number;
 	contentType: string;
+	url: string;
+	guid: string;
+	lastChanged: string;
 	width?: number;
 	height?: number;
 };
@@ -101,7 +101,13 @@ export function isBunnyAsset(value: unknown): value is BunnyAsset {
 		"size" in value &&
 		typeof value.size === "number" &&
 		"contentType" in value &&
-		typeof value.contentType === "string"
+		typeof value.contentType === "string" &&
+		"url" in value &&
+		typeof value.url === "string" &&
+		"guid" in value &&
+		typeof value.guid === "string" &&
+		"lastChanged" in value &&
+		typeof value.lastChanged === "string"
 	);
 }
 

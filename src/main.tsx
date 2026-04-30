@@ -1,8 +1,8 @@
 import { connect } from "datocms-plugin-sdk";
 import "datocms-react-ui/styles.css";
-import ConfigScreen from "./entrypoints/ConfigScreen";
 import BunnyFieldExtension from "./entrypoints/BunnyFieldExtension";
 import BunnyPickerModal from "./entrypoints/BunnyPickerModal";
+import ConfigScreen from "./entrypoints/ConfigScreen";
 import { render } from "./utils/render";
 
 const FIELD_EXTENSION_ID = "bunnyNetPicker";
@@ -33,8 +33,7 @@ connect({
 
 		if (
 			field.attributes.field_type !== "json" ||
-			(fieldExtension !== FIELD_EXTENSION_ID &&
-				fieldExtension !== MULTIPLE_FIELD_EXTENSION_ID)
+			(fieldExtension !== FIELD_EXTENSION_ID && fieldExtension !== MULTIPLE_FIELD_EXTENSION_ID)
 		) {
 			return;
 		}

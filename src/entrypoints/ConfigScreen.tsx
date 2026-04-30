@@ -1,19 +1,8 @@
-import { useState } from "react";
 import type { RenderConfigScreenCtx } from "datocms-plugin-sdk";
-import {
-	Button,
-	Canvas,
-	TextField,
-	Form,
-	FieldGroup,
-	SelectField,
-} from "datocms-react-ui";
+import { Button, Canvas, FieldGroup, Form, SelectField, TextField } from "datocms-react-ui";
+import { useState } from "react";
 import type { PluginParams } from "../types";
-import {
-	getStorageBaseUrl,
-	getStorageRegionOption,
-	STORAGE_REGION_OPTIONS,
-} from "../types";
+import { getStorageBaseUrl, getStorageRegionOption, STORAGE_REGION_OPTIONS } from "../types";
 
 type Props = {
 	ctx: RenderConfigScreenCtx;
@@ -97,7 +86,9 @@ export default function ConfigScreen({ ctx }: Props) {
 						id="cdnHostname"
 						name="cdnHostname"
 						label="CDN Hostname"
-						hint={`Your pull zone hostname, e.g. myzone.b-cdn.net. Files will be served from https://${values.cdnHostname || "your-hostname.b-cdn.net"}/`}
+						hint={`Your pull zone hostname, e.g. myzone.b-cdn.net. Files will be served from https://${
+							values.cdnHostname || "your-hostname.b-cdn.net"
+						}/`}
 						placeholder="myzone.b-cdn.net"
 						required
 						value={values.cdnHostname}
