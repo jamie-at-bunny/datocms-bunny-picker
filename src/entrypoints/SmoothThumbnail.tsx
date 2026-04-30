@@ -1,10 +1,10 @@
 import {
-	useEffect,
-	useRef,
-	useState,
 	type ImgHTMLAttributes,
 	type ReactNode,
 	type SyntheticEvent,
+	useEffect,
+	useRef,
+	useState,
 } from "react";
 
 const loadedThumbnailUrls = new Set<string>();

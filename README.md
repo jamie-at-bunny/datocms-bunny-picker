@@ -23,12 +23,12 @@ Select files from a bunny.net Storage Zone inside DatoCMS and save the selected 
 
 After installing the plugin, configure:
 
-| Setting | Description |
-| --- | --- |
-| Storage Zone Name | The name of your bunny.net Storage Zone |
-| Storage API Key | The API key from the Storage Zone FTP & API Access settings |
-| CDN Hostname | Your Pull Zone hostname, for example `my-zone.b-cdn.net` |
-| Storage Region | The region where your Storage Zone is hosted |
+| Setting           | Description                                                 |
+| ----------------- | ----------------------------------------------------------- |
+| Storage Zone Name | The name of your bunny.net Storage Zone                     |
+| Storage API Key   | The API key from the Storage Zone FTP & API Access settings |
+| CDN Hostname      | Your Pull Zone hostname, for example `my-zone.b-cdn.net`    |
+| Storage Region    | The region where your Storage Zone is hosted                |
 
 Supported regions:
 

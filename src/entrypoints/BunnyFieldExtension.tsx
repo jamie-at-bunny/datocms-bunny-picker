@@ -1,23 +1,18 @@
 import type { RenderFieldExtensionCtx } from "datocms-plugin-sdk";
-import { Canvas, Button } from "datocms-react-ui";
+import { Button, Canvas } from "datocms-react-ui";
 import get from "lodash-es/get";
-import type {
-	PluginParams,
-	BunnyAsset,
-	SelectionMode,
-	BunnyPickerResult,
-} from "../types";
+import type { BunnyAsset, BunnyPickerResult, PluginParams, SelectionMode } from "../types";
 import {
-	isImageFile,
-	formatFileSize,
 	buildCdnUrl,
 	buildThumbnailUrl,
+	formatFileSize,
 	hasRequiredPluginParams,
-	parseStoredSingleAsset,
+	isImageFile,
 	parseStoredMultipleAssets,
+	parseStoredSingleAsset,
 } from "../types";
-import SmoothThumbnail from "./SmoothThumbnail";
 import s from "./BunnyFieldExtension.module.css";
+import SmoothThumbnail from "./SmoothThumbnail";
 
 type Props = {
 	ctx: RenderFieldExtensionCtx;
@@ -33,11 +28,7 @@ export default function BunnyFieldExtension({ ctx, selectionMode }: Props) {
 	const singleAsset = parseStoredSingleAsset(rawValue);
 	const multipleAssets = parseStoredMultipleAssets(rawValue);
 	const selectedAssets =
-		selectionMode === "multiple"
-			? multipleAssets
-			: singleAsset
-				? [singleAsset]
-				: [];
+		selectionMode === "multiple" ? multipleAssets : singleAsset ? [singleAsset] : [];
 
 	ctx.startAutoResizer();
 
@@ -48,8 +39,7 @@ export default function BunnyFieldExtension({ ctx, selectionMode }: Props) {
 			width: "xl",
 			parameters: {
 				selectionMode,
-				selectedAssets:
-					selectionMode === "multiple" ? selectedAssets : undefined,
+				selectedAssets: selectionMode === "multiple" ? selectedAssets : undefined,
 			},
 		})) as BunnyPickerResult;
 
@@ -74,9 +64,7 @@ export default function BunnyFieldExtension({ ctx, selectionMode }: Props) {
 	const removeAsset = async (assetPath: string) => {
 		if (selectionMode !== "multiple") return;
 
-		const nextAssets = selectedAssets.filter(
-			(asset) => asset.path !== assetPath,
-		);
+		const nextAssets = selectedAssets.filter((asset) => asset.path !== assetPath);
 
 		await ctx.setFieldValue(
 			ctx.fieldPath,
@@ -94,8 +82,8 @@ export default function BunnyFieldExtension({ ctx, selectionMode }: Props) {
 					<div className={s.meta}>
 						<div className={s.filename}>bunny.net is not configured</div>
 						<div className={s.details}>
-							Add the storage zone, storage API key, CDN hostname, and
-							region in the plugin settings.
+							Add the storage zone, storage API key, CDN hostname, and region in the plugin
+							settings.
 						</div>
 					</div>
 				</div>
@@ -136,12 +124,7 @@ type SingleAssetFieldProps = {
 	onClear: () => void;
 };
 
-function SingleAssetField({
-	asset,
-	cdnHostname,
-	onOpenPicker,
-	onClear,
-}: SingleAssetFieldProps) {
+function SingleAssetField({ asset, cdnHostname, onOpenPicker, onClear }: SingleAssetFieldProps) {
 	if (!asset) {
 		return (
 			<div className={s.assetBox}>
@@ -150,9 +133,7 @@ function SingleAssetField({
 				</div>
 				<div className={s.meta}>
 					<div className={s.filename}>No bunny.net asset selected</div>
-					<div className={s.details}>
-						Choose a file from your configured storage zone.
-					</div>
+					<div className={s.details}>Choose a file from your configured storage zone.</div>
 				</div>
 				<div className={s.actions}>
 					<Button buttonType="primary" buttonSize="s" onClick={onOpenPicker}>
@@ -187,13 +168,7 @@ function SingleAssetField({
 					{asset.filename}
 				</a>
 				<div className={s.details}>{getAssetDetails(asset)}</div>
-				<a
-					className={s.pathLink}
-					href={cdnUrl}
-					target="_blank"
-					rel="noreferrer"
-					title="Open asset"
-				>
+				<a className={s.pathLink} href={cdnUrl} target="_blank" rel="noreferrer" title="Open asset">
 					{cdnUrl}
 				</a>
 			</div>
@@ -250,12 +225,9 @@ function MultipleAssetField({
 			<div className={s.multiHeader}>
 				<div className={s.meta}>
 					<div className={s.filename}>
-						{assets.length} bunny.net{" "}
-						{assets.length === 1 ? "asset" : "assets"} selected
+						{assets.length} bunny.net {assets.length === 1 ? "asset" : "assets"} selected
 					</div>
-					<div className={s.details}>
-						Use Edit selection to add or remove files.
-					</div>
+					<div className={s.details}>Use Edit selection to add or remove files.</div>
 				</div>
 				<div className={s.actions}>
 					<Button buttonType="primary" buttonSize="s" onClick={onOpenPicker}>
@@ -286,11 +258,7 @@ type MultipleAssetListItemProps = {
 	onRemove: (assetPath: string) => void;
 };
 
-function MultipleAssetListItem({
-	asset,
-	cdnHostname,
-	onRemove,
-}: MultipleAssetListItemProps) {
+function MultipleAssetListItem({ asset, cdnHostname, onRemove }: MultipleAssetListItemProps) {
 	const cdnUrl = buildCdnUrl(cdnHostname, asset.path);
 
 	return (
@@ -315,21 +283,11 @@ function MultipleAssetListItem({
 					{asset.filename}
 				</a>
 				<div className={s.details}>{getAssetDetails(asset)}</div>
-				<a
-					className={s.pathLink}
-					href={cdnUrl}
-					target="_blank"
-					rel="noreferrer"
-					title="Open asset"
-				>
+				<a className={s.pathLink} href={cdnUrl} target="_blank" rel="noreferrer" title="Open asset">
 					{cdnUrl}
 				</a>
 			</div>
-			<Button
-				buttonType="muted"
-				buttonSize="s"
-				onClick={() => onRemove(asset.path)}
-			>
+			<Button buttonType="muted" buttonSize="s" onClick={() => onRemove(asset.path)}>
 				Remove
 			</Button>
 		</div>
@@ -369,9 +327,7 @@ function AssetThumbnail({ asset, cdnHostname }: AssetThumbnailProps) {
 
 function getAssetDetails(asset: BunnyAsset): string {
 	return `${formatFileSize(asset.size)}${
-		asset.contentType !== "application/octet-stream"
-			? ` \u00B7 ${asset.contentType}`
-			: ""
+		asset.contentType !== "application/octet-stream" ? ` \u00B7 ${asset.contentType}` : ""
 	}`;
 }
 
@@ -384,6 +340,7 @@ function FileIcon() {
 			fill="none"
 			stroke="currentColor"
 			strokeWidth="2"
+			aria-hidden="true"
 		>
 			<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
 			<polyline points="14 2 14 8 20 8" />

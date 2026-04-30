@@ -5,9 +5,7 @@ export type PluginParams = {
 	storageRegion: string;
 };
 
-export function hasRequiredPluginParams(
-	params: Partial<PluginParams>,
-): params is PluginParams {
+export function hasRequiredPluginParams(params: Partial<PluginParams>): params is PluginParams {
 	return Boolean(
 		params.storageZoneName?.trim() &&
 			params.storageApiKey?.trim() &&
@@ -72,8 +70,7 @@ export const STORAGE_REGION_OPTIONS: StorageRegionOption[] = [
 
 export function getStorageRegionOption(region: string): StorageRegionOption {
 	return (
-		STORAGE_REGION_OPTIONS.find((option) => option.value === region) ||
-		STORAGE_REGION_OPTIONS[0]
+		STORAGE_REGION_OPTIONS.find((option) => option.value === region) || STORAGE_REGION_OPTIONS[0]
 	);
 }
 
