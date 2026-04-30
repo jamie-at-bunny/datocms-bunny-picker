@@ -92,6 +92,26 @@ const url = asset.url;
 
 For the multiple-asset editor, parse the field as an array.
 
+## Image transformations with bunny Optimizer
+
+If your Pull Zone has [bunny Optimizer](https://docs.bunny.net/optimizer/quickstart) enabled, you can transform images on the fly by appending query parameters to the stored `url`.
+
+```js
+const asset = JSON.parse(record.bunnyAsset);
+
+const thumbnail = `${asset.url}?width=400&height=300&aspect_ratio=4:3`;
+const webp = `${asset.url}?format=webp&quality=80`;
+```
+
+Common parameters:
+
+- `width`, `height` for resizing the image
+- `aspect_ratio` to crop to a ratio, for example `16:9`
+- `format` to convert to `webp`, `avif`, `jpg`, or `png`
+- `quality` for compression quality from `0` to `100`
+
+See the [bunny Optimizer docs](https://docs.bunny.net/optimizer/quickstart) for the full list of options. Optimizer must be enabled on your Pull Zone for these parameters to take effect.
+
 ## Notes
 
 - The Storage API key is used by the plugin inside DatoCMS to list and upload files.
