@@ -92,7 +92,7 @@ const url = asset.url;
 
 For the multiple-asset editor, parse the field as an array.
 
-## Image transformations with bunny Optimizer
+## Image transformations with bunny.net Optimizer
 
 If your Pull Zone has [bunny Optimizer](https://docs.bunny.net/optimizer/quickstart) enabled, you can transform images on the fly by appending query parameters to the stored `url`.
 
