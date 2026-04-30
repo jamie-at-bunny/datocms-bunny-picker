@@ -10,7 +10,7 @@
 	],
 	"datoCmsPlugin": {
 		"title": "DatoCMS bunny.net Picker",
-		"coverImage": "docs/cover-1200x800.png",
+		"coverImage": "docs/cover.png",
 		"previewImage": "docs/preview.mp4",
 		"entryPoint": "dist/index.html",
 		"permissions": [
