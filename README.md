@@ -49,8 +49,6 @@ Create or edit a JSON field in DatoCMS, then choose one of these manual field ed
 - **bunny.net Asset** — select one asset
 - **bunny.net Assets** — select multiple assets
 
-The existing `bunny.net Asset` editor keeps the same stored value format for existing fields.
-
 ## Stored value
 
 The plugin stores a stringified JSON value in the JSON field.
@@ -62,7 +60,10 @@ Single asset, after parsing:
   "path": "folder/image.jpg",
   "filename": "image.jpg",
   "size": 153240,
-  "contentType": "image/jpeg"
+  "contentType": "image/jpeg",
+  "url": "https://my-zone.b-cdn.net/folder/image.jpg",
+  "guid": "8e3b3b4e-1f6a-4b2a-9b8a-2f1e6d7c8a9b",
+  "lastChanged": "2025-04-30T10:21:00.000"
 }
 ```
 
@@ -74,7 +75,10 @@ Multiple assets, after parsing:
     "path": "folder/image.jpg",
     "filename": "image.jpg",
     "size": 153240,
-    "contentType": "image/jpeg"
+    "contentType": "image/jpeg",
+    "url": "https://my-zone.b-cdn.net/folder/image.jpg",
+    "guid": "8e3b3b4e-1f6a-4b2a-9b8a-2f1e6d7c8a9b",
+    "lastChanged": "2025-04-30T10:21:00.000"
   }
 ]
 ```
@@ -83,7 +87,7 @@ Example frontend usage:
 
 ```js
 const asset = JSON.parse(record.bunnyAsset);
-const url = `https://my-zone.b-cdn.net/${asset.path}`;
+const url = asset.url;
 ```
 
 For the multiple-asset editor, parse the field as an array.

@@ -4,6 +4,7 @@ import { Button, Canvas, Spinner, TextInput } from "datocms-react-ui";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { BunnyAsset, PluginParams, SelectionMode, StorageObject } from "../types";
 import {
+	buildCdnUrl,
 	buildThumbnailUrl,
 	formatFileSize,
 	getContentType,
@@ -158,11 +159,15 @@ export default function BunnyPickerModal({ ctx }: Props) {
 	};
 
 	const getAssetFromFile = (file: StorageObject): BunnyAsset => {
+		const path = getFilePath(file);
 		return {
-			path: getFilePath(file),
+			path,
 			filename: file.ObjectName,
 			size: file.Length,
 			contentType: getContentType(file.ObjectName),
+			url: buildCdnUrl(cdnHostname, path),
+			guid: file.Guid,
+			lastChanged: file.LastChanged,
 		};
 	};
 

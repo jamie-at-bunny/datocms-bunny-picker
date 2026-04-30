@@ -79,6 +79,9 @@ export type BunnyAsset = {
 	filename: string;
 	size: number;
 	contentType: string;
+	url: string;
+	guid: string;
+	lastChanged: string;
 	width?: number;
 	height?: number;
 };
@@ -98,7 +101,13 @@ export function isBunnyAsset(value: unknown): value is BunnyAsset {
 		"size" in value &&
 		typeof value.size === "number" &&
 		"contentType" in value &&
-		typeof value.contentType === "string"
+		typeof value.contentType === "string" &&
+		"url" in value &&
+		typeof value.url === "string" &&
+		"guid" in value &&
+		typeof value.guid === "string" &&
+		"lastChanged" in value &&
+		typeof value.lastChanged === "string"
 	);
 }
 
