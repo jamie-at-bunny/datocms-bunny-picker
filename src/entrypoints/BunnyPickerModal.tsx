@@ -62,6 +62,10 @@ export default function BunnyPickerModal({ ctx }: Props) {
 	const storageApiKey = storageConfig?.storageApiKey || "";
 	const cdnHostname = storageConfig?.cdnHostname || "";
 	const storageRegion = storageConfig?.storageRegion || "";
+	const storageHostSuffix = storageConfig?.useCustomHostSuffix
+		? storageConfig.storageHostSuffix || ""
+		: "";
+	const s3Enabled = Boolean(storageConfig?.s3Enabled);
 
 	const [files, setFiles] = useState<StorageObject[]>([]);
 	const [loading, setLoading] = useState(isConfigured);
@@ -75,7 +79,9 @@ export default function BunnyPickerModal({ ctx }: Props) {
 	const listRef = useRef<HTMLDivElement>(null);
 	const [listWidth, setListWidth] = useState(0);
 
-	const storageBaseUrl = isConfigured ? getStorageBaseUrl(storageRegion) : "";
+	const storageBaseUrl = isConfigured
+		? getStorageBaseUrl(storageRegion, storageHostSuffix, s3Enabled)
+		: "";
 	const isUploading = uploading.some((u) => u.progress === "uploading");
 
 	const fetchFiles = useCallback(
