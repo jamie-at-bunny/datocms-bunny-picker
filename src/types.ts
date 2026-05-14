@@ -3,7 +3,12 @@ export type PluginParams = {
 	storageApiKey: string;
 	cdnHostname: string;
 	storageRegion: string;
+	useCustomHostSuffix?: boolean;
+	storageHostSuffix?: string;
+	s3Enabled?: boolean;
 };
+
+export const DEFAULT_STORAGE_HOST_SUFFIX = "bunnycdn.com";
 
 export function hasRequiredPluginParams(params: Partial<PluginParams>): params is PluginParams {
 	return Boolean(
@@ -17,56 +22,27 @@ export function hasRequiredPluginParams(params: Partial<PluginParams>): params i
 export type StorageRegionOption = {
 	label: string;
 	value: string;
-	endpoint: string;
+	prefix: string;
+	s3Available: boolean;
 };
 
 export const STORAGE_REGION_OPTIONS: StorageRegionOption[] = [
-	{
-		label: "Frankfurt, DE",
-		value: "de",
-		endpoint: "https://storage.bunnycdn.com",
-	},
-	{
-		label: "London, UK",
-		value: "uk",
-		endpoint: "https://uk.storage.bunnycdn.com",
-	},
-	{
-		label: "New York, US",
-		value: "ny",
-		endpoint: "https://ny.storage.bunnycdn.com",
-	},
-	{
-		label: "Los Angeles, US",
-		value: "la",
-		endpoint: "https://la.storage.bunnycdn.com",
-	},
-	{
-		label: "Singapore, SG",
-		value: "sg",
-		endpoint: "https://sg.storage.bunnycdn.com",
-	},
-	{
-		label: "Stockholm, SE",
-		value: "se",
-		endpoint: "https://se.storage.bunnycdn.com",
-	},
-	{
-		label: "São Paulo, BR",
-		value: "br",
-		endpoint: "https://br.storage.bunnycdn.com",
-	},
-	{
-		label: "Johannesburg, ZA",
-		value: "jh",
-		endpoint: "https://jh.storage.bunnycdn.com",
-	},
-	{
-		label: "Sydney, AU",
-		value: "syd",
-		endpoint: "https://syd.storage.bunnycdn.com",
-	},
+	{ label: "Frankfurt, DE", value: "de", prefix: "", s3Available: true },
+	{ label: "London, UK", value: "uk", prefix: "uk", s3Available: false },
+	{ label: "New York, US", value: "ny", prefix: "ny", s3Available: true },
+	{ label: "Los Angeles, US", value: "la", prefix: "la", s3Available: false },
+	{ label: "Singapore, SG", value: "sg", prefix: "sg", s3Available: true },
+	{ label: "Stockholm, SE", value: "se", prefix: "se", s3Available: false },
+	{ label: "São Paulo, BR", value: "br", prefix: "br", s3Available: false },
+	{ label: "Johannesburg, ZA", value: "jh", prefix: "jh", s3Available: false },
+	{ label: "Sydney, AU", value: "syd", prefix: "syd", s3Available: false },
 ];
+
+export const S3_STORAGE_REGION_OPTIONS: StorageRegionOption[] = STORAGE_REGION_OPTIONS.filter(
+	(option) => option.s3Available,
+);
+
+export const DEFAULT_S3_REGION = "de";
 
 export function getStorageRegionOption(region: string): StorageRegionOption {
 	return (
@@ -195,8 +171,26 @@ export function formatFileSize(bytes: number): string {
 	return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-export function getStorageBaseUrl(region: string): string {
-	return getStorageRegionOption(region).endpoint;
+export function normalizeStorageHostSuffix(suffix: string | undefined): string {
+	const trimmed = (suffix ?? "")
+		.trim()
+		.replace(/^https?:\/\//, "")
+		.replace(/\/.*$/, "")
+		.replace(/\.+$/, "");
+	return trimmed || DEFAULT_STORAGE_HOST_SUFFIX;
+}
+
+export function getStorageBaseUrl(
+	region: string,
+	hostSuffix?: string,
+	s3Enabled?: boolean,
+): string {
+	const { prefix } = getStorageRegionOption(region);
+	const suffix = normalizeStorageHostSuffix(hostSuffix);
+	if (s3Enabled) {
+		return `https://${prefix ? `${prefix}-s3` : "s3"}.storage.${suffix}`;
+	}
+	return `https://${prefix ? `${prefix}.` : ""}storage.${suffix}`;
 }
 
 export function buildCdnUrl(cdnHostname: string, path: string): string {
