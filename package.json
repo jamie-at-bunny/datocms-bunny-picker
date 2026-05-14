@@ -2,7 +2,7 @@
 	"name": "@bunny.net/datocms-plugin",
 	"description": "Integrate bunny.net storage in your datocms",
 	"homepage": "https://github.com/jamie-at-bunny/datocms-bunny-picker",
-	"version": "0.0.1",
+	"version": "0.1.0",
 	"author": "Jamie Barton <jamie@bunny.net>",
 	"type": "module",
 	"keywords": [
